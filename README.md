@@ -3,6 +3,10 @@ This repository contains the code and scripts used in evaluating the SC 2021
 paper titled "Arithmetic-Intensity-Guided Fault Tolerance for Neural
 Network Inference on GPUs".
 
+**Abstract:** Neural networks (NNs) are increasingly employed in safety-critical domains and in environments prone to unreliability (e.g., soft errors), such as on spacecraft. Therefore, it is critical to impart fault tolerance to NN inference. Algorithm-based fault tolerance (ABFT) is emerging as an efficient approach for fault tolerance in NNs.
+
+We propose an adaptive approach to ABFT for NN inference that exploits untapped opportunities in emerging deployment scenarios. GPUs have high compute-to-memory-bandwidth ratios, while NN layers have a wide range of arithmetic intensities. This leaves some layers compute bound and others memory-bandwidth bound, but current approaches to ABFT do not consider these differences. We first investigate ABFT schemes best suited for each of these scenarios. We then propose intensity-guided ABFT, an adaptive, arithmetic-intensity-guided approach that selects the most efficient ABFT scheme for each NN layer. Intensity-guided ABFT reduces execution-time overhead by 1.09--5.3× across many NNs compared to traditional approaches to ABFT.
+
 ## Contents of the repository
 * [cutlass-util](cutlass-util): directory containing scripts for building
   and running experiments.
