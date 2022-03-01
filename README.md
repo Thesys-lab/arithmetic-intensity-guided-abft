@@ -1,7 +1,7 @@
 # Arithmetic-intensity-guided ABFT
 This repository contains the code and scripts used in evaluating the SC 2021
-paper titled "Arithmetic-Intensity-Guided Fault Tolerance for Neural
-Network Inference on GPUs".
+paper titled [Arithmetic-Intensity-Guided Fault Tolerance for Neural
+Network Inference on GPUs](https://dl.acm.org/doi/abs/10.1145/3458817.3476184).
 
 **Abstract:** Neural networks (NNs) are increasingly employed in safety-critical domains and in environments prone to unreliability (e.g., soft errors), such as on spacecraft. Therefore, it is critical to impart fault tolerance to NN inference. Algorithm-based fault tolerance (ABFT) is emerging as an efficient approach for fault tolerance in NNs.
 
@@ -14,7 +14,11 @@ We propose an adaptive approach to ABFT for NN inference that exploits untapped 
   that we compare against in the absence of fault tolerance. This directory
   is an unmodified snapshot of the upstream CUTLASS repository.
 * [cutlass-abft-thread](cutlass-abft-thread): directory containing the
-  implementation of thread-level ABFT that we develop.
+  implementation of thread-level ABFT that we develop. The `master` branch
+  contains one-sided thread-level ABFT, whereas the `two-sided` branch contains
+  two-sided thread-level ABFT, and the `replication` branch contains thread-level
+  replication. The differences between these are detailed in Sections 4 and 5 of the
+  paper.
 * [cutlass-abft-global](cutlass-abft-global): directory containing the
   implementation of global ABFT that we use as part of AI-guided ABFT.
 
