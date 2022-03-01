@@ -309,64 +309,14 @@ public:
               ptr_D[m_serpentine + n * MmaIterations::kRow]);
           }
 
-          #if 0 // This is used for testing replication to same register
+          // Replicate MM and accumulate to accum_abft
           mma(
               accum_abft,
               ptr_A[m_serpentine],
               ptr_B[n],
               accum_abft);
-          #endif 
         }
       }
-
-    #if 1 // This is used for testing half ABFT (checksum of B only)
-    __half2 b_checksum = make_half2(0.f, 0.f);
-    CUTLASS_PRAGMA_UNROLL
-    for (int i = 0; i < MmaIterations::kColumn; ++i)
-      b_checksum = __hadd2(reinterpret_cast<__half2 const &>(ptr_B[i]), b_checksum);
-    MmaOperandB checkB;
-    checkB[0] = (half_t)b_checksum.x;
-    checkB[1] = (half_t)b_checksum.y;
-
-    CUTLASS_PRAGMA_UNROLL
-    for (int i = 0; i < MmaIterations::kRow; ++i) {
-      mma(accum_abft,
-          ptr_A[i],
-          checkB,
-          accum_abft);
-    }
-    #endif
-
-    #if 0 // This is used for testing full ABFT
-    __half2 b_checksum = make_half2(0.f, 0.f);
-    CUTLASS_PRAGMA_UNROLL
-    for (int i = 0; i < MmaIterations::kColumn; ++i)
-      b_checksum = __hadd2(reinterpret_cast<__half2 const &>(ptr_B[i]), b_checksum);
-    MmaOperandB checkB;
-    checkB[0] = (half_t)b_checksum.x;
-    checkB[1] = (half_t)b_checksum.y;
-
-    __half2 a_checksum0 = make_half2(0.f, 0.f);
-    __half2 a_checksum1 = make_half2(0.f, 0.f);
-    // Convert A into groups of 2. We can do this by using MmaOperandB, which
-    // is an Array<half_t, 2>.
-    MmaOperandB const *ptr_A_groups_of_2 = reinterpret_cast<MmaOperandB const *>(&A);
-    CUTLASS_PRAGMA_UNROLL
-    for (int i = 0; i < MmaIterations::kRow * 2; i+=2) {
-      a_checksum0 = __hadd2(reinterpret_cast<__half2 const &>(ptr_A_groups_of_2[i]), a_checksum0);
-      a_checksum1 = __hadd2(reinterpret_cast<__half2 const &>(ptr_A_groups_of_2[i+1]), a_checksum1);
-    }
-    MmaOperandA checkA;
-    checkA[0] = (half_t)a_checksum0.x;
-    checkA[1] = (half_t)a_checksum0.y;
-    checkA[2] = (half_t)a_checksum1.x;
-    checkA[3] = (half_t)a_checksum1.y;
-
-    mma(accum_abft,
-        checkA,
-        checkB,
-        accum_abft);
-    #endif
 
     #elif defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
       // Serpentine visitation order maximizing reuse of Ra
