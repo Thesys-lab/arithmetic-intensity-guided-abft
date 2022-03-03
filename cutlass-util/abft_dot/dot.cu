@@ -23,17 +23,21 @@ void cudaErrCheck_(cudaError_t stat, const char *file, int line) {
    }
 }
 
+// Calculate the starting and ending rows to be considered by threads in this block
 __device__
 void block_row_start_end(int total_rows, int split, int* start, int* end) {
+  // Number of rows to be operated on by each split (before accounting for any
+  // remaining rows)
   int base_rows = total_rows / split;
 
-  // Account for any remaining rows that need to be covered. Note that
-  // block_row_id will be less than split
+  // Account for any remaining rows that need to be covered. Each block with id
+  // less than remainder must comute an additonal row
   int my_rows = base_rows;
   int remainder = total_rows % split;
   if (blockIdx.y < remainder)
     my_rows += 1;
 
+  // Calculate the starting and ending row for threads in this block
   int num_added_before_me = min(blockIdx.y, remainder);
   *start = (base_rows * blockIdx.y) + num_added_before_me;
   *end = *start + my_rows;
@@ -67,7 +71,9 @@ AB_TYPE load_and_mult_unrolled(
         val += A_checksum[(K * (start + i)) + col_id];
       }
 
-      // Perform any remaining loads
+      // A templated version of this function with a given template
+      // parameter `rows` is called for `num_rows >= rows`. Thus,
+      // we may need to perform some additional loads and sums here.
       for (int i = start + rows; i < end; ++i) {
         val += A_checksum[(K * i) + col_id];
       }
@@ -85,10 +91,11 @@ AB_TYPE load_and_mult(const AB_TYPE* A_checksum,
                     int K,
                     int A_rows,
                     int split_m) {
-  //int col_id = (blockDim.x * blockIdx.x) + threadIdx.x;
   int start = 0, end = 0;
   block_row_start_end(A_rows, split_m, &start, &end);
 
+  // Call into templated versions based on the number of rows to reduce so
+  // that we can unroll loops.
   int rows = end - start;
   if (rows >= 128)
     return load_and_mult_unrolled<128>(A_checksum, B_checksum, K, start, end);
@@ -314,6 +321,52 @@ void global_reduce_dot_and_check_warp(
 }
 
 
+/*
+Top-level driving function to perform reduction and dot-product operations.
+
+Arguments
+---------
+blocks:
+  total number of blocks to be run
+
+blocks_x:
+  blocks in the x dimension to launch
+
+blocks_y:
+  blocks in the y dimension to launch
+
+block_size:
+  threads per block
+
+a_partial_checksum:
+  pointer to region of global memory holding partial checksums of matrix A
+
+b_checksum:
+  pointer to region of global memory holding checksum vector of matrix B
+
+dot_out:
+  pointer to region of global memory to write the output of the dot product to
+
+out_partial_checksum:
+  pointer to region of global memory containing partial output checksums that
+  will be used in comparison with the dot product output (after they are reduced)
+
+num_rows_A:
+  number of rows that need to be summed in generating the column checksum of A
+
+split_m:
+  number of threadblocks to launch for summing the partial checksums of A
+
+out_MN_reduced:
+  number of partial checksum elements of the output tensor that need to be
+  further reduced
+error:
+  pointer to global memory indicating whether an error occurred
+single_kernel:
+  whether to launch the reduction, dot product, and comparison in a single
+  kernel. This requires that the number of threads be small enough to support
+  this.
+*/
 cudaError_t run(
     int blocks,
     int blocks_x,
@@ -331,6 +384,10 @@ cudaError_t run(
     bool single_kernel) {
 
   if (!single_kernel) {
+    // Complete the reduction of the partial checksums of matrix A, multiply them with
+    // the corresponding elements of the checksum vector of B, and reduce the results.
+    //
+    // We use templates here to pass in block size to CUB's BlockReduce
     dim3 grid(blocks_x, blocks_y, 1);
     switch (block_size) {
       case 512:
@@ -357,6 +414,7 @@ cudaError_t run(
     if (err != cudaSuccess)
       return err;
 
+    // Reduce the output checksum and partial dot product checksums and compare them
     int threads_for_global = max(out_MN_reduced, blocks);
     if (threads_for_global > 256) {
       global_reduce<512><<<1,512>>>(dot_out, out_partial_checksum, blocks, out_MN_reduced, error);
@@ -374,6 +432,11 @@ cudaError_t run(
       global_reduce_warp<<<1,32>>>(dot_out, out_partial_checksum, blocks, out_MN_reduced, error);
     }
   } else { // single_kernel
+    // In this case, we launch a single kernel to perform:
+    // (1) Reduction of partial checksums of A
+    // (2) Dot product
+    // (3) Reduction of partial output checksums of C
+    // (4) Comparison
     switch (block_size) {
       case 512:
         global_reduce_dot_and_check<512><<<1, block_size>>>(a_partial_checksum, b_checksum, K, num_rows_A, split_m, out_partial_checksum, out_MN_reduced, error);
